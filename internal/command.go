@@ -18,7 +18,7 @@ type Command struct {
 }
 
 type CommandParser interface {
-	Parse(command string) (*Command, error)
+	Parse(command string) *Command
 }
 
 type GeneralCommandParser struct{}

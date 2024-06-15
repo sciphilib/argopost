@@ -1,7 +1,6 @@
 package smtp
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -10,10 +9,7 @@ import (
 type Server struct {
 	host string
 	port string
-}
-
-type Client struct {
-	conn net.Conn
+	sm   *SessionManager
 }
 
 type Config struct {
@@ -25,11 +21,13 @@ func New(config *Config) *Server {
 	return &Server{
 		host: config.Host,
 		port: config.Port,
+		sm:   NewManager(),
 	}
 }
 
 func (server *Server) Run() {
 	host := fmt.Sprintf("%s:%s", server.host, server.port)
+
 	listener, err := net.Listen("tcp", host)
 	if err != nil {
 		log.Fatal(err)
@@ -42,22 +40,15 @@ func (server *Server) Run() {
 			log.Fatal(err)
 		}
 
-		client := &Client{
-			conn: conn,
-		}
-		go client.handleRequest()
+		session := server.sm.CreateSession(conn)
+		go server.handle(session)
 	}
 }
 
-func (client *Client) handleRequest() {
-	reader := bufio.NewReader(client.conn)
-	for {
-		message, err := reader.ReadString('\n')
-		if err != nil {
-			client.conn.Close()
-			return
-		}
-		fmt.Printf("Message incoming: %s", string(message))
-		client.conn.Write([]byte("Message received.\n"))
+func (server *Server) handle(s *Session) {
+	defer server.sm.CloseSession(s)
+	err := server.sm.HandleSession(s)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
