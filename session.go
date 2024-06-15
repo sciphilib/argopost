@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/maphash"
 	"net"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ type (
 		state  SessionState
 		reader *bufio.Reader
 		user   string
+		from   string
 	}
 
 	SessionState int
@@ -44,13 +46,15 @@ func (m *SessionManager) HandleSession(s *Session) error {
 	}
 
 	command := m.cmdParser.Parse(message)
+	fmt.Println(command)
 
 	switch command.Type {
 	case internal.HeloCommand:
-		args := m.ParseHeloArgs(command)
-		s.handleHelo(args)
+		s.handleHelo(command.Payload)
+	case internal.MailFromCommand:
+		s.handleMailFrom(command.Payload)
 	default:
-		s.invalidCommand(command)
+		s.invalidCommand(message)
 	}
 
 	return nil
@@ -69,10 +73,6 @@ func (m *SessionManager) CreateSession(conn net.Conn) *Session {
 func (m *SessionManager) CloseSession(s *Session) {
 	delete(m.sessions, s.hash)
 	s.conn.Close()
-}
-
-func (m *SessionManager) ParseHeloArgs(c *internal.Command) string {
-	return m.cmdParser.ParseHeloArgs(c)
 }
 
 func (s *Session) Write(code string, text ...string) error {
@@ -105,16 +105,42 @@ func (s *Session) nextDeadline() time.Time {
 }
 
 func (s *Session) handleHelo(args string) {
+	parts := strings.Fields(args)[0]
 	var builder strings.Builder
-	if len(args) == 0 {
+	if len(parts) == 0 {
 		s.Write("501", "Domain/address argument is required for HELO")
 	}
-	s.user = args
+	s.user = parts
 
 	builder.WriteString(fmt.Sprintf("Hello %s", s.user))
 	s.Write("250", builder.String())
 }
 
-func (s *Session) invalidCommand(c *internal.Command) {
-	s.Write("503", fmt.Sprintf("Command %s is invalid or out of sequence", c.Type))
+func (s *Session) handleMailFrom(args string) error {
+	// todo: check authorization
+	if len(s.user) == 0 {
+		return s.Write("502", "Enter domain/address first before MAIL FROM command")
+	}
+
+	parts := strings.Fields(args)
+	if len(parts) == 0 {
+		return s.Write("501", "Email argument is required for MAIL FROM")
+	}
+
+	email, err := mail.ParseAddress(parts[0])
+	if err != nil {
+		return s.Write("501", "Invalid email address")
+	}
+
+	s.from = email.Address
+
+	return s.Write("250", fmt.Sprintf("Accepting mail from %s", s.from))
+}
+
+func (s *Session) invalidCommand(m string) {
+	s.Write("503", fmt.Sprintf("Command %s is invalid", strings.Join(strings.Fields(m), " ")))
+}
+
+func (s *Session) unexpectedCommand(c *internal.Command) {
+	s.Write("503", fmt.Sprintf("Command %s is unexpected", c.Type))
 }

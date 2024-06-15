@@ -11,8 +11,8 @@ func TestParse(t *testing.T) {
 		expected *Command
 	}{
 		{"HELO example.com", &Command{Type: HeloCommand, Payload: "example.com"}},
-		{"MAIL FROM: <test@example.com>", &Command{Type: MailFromCommand, Payload: "<test@example.com>"}},
-		{"RCPT TO: <test@example.com>", &Command{Type: RcptToCommand, Payload: "<test@example.com>"}},
+		{"MAIL FROM <test@example.com>", &Command{Type: MailFromCommand, Payload: "<test@example.com>"}},
+		{"RCPT TO <test@example.com>", &Command{Type: RcptToCommand, Payload: "<test@example.com>"}},
 		{"DATA", &Command{Type: DataCommand, Payload: ""}},
 		{"QUIT", &Command{Type: QuitCommand, Payload: ""}},
 	}

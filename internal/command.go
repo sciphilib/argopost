@@ -1,6 +1,8 @@
 package internal
 
-import "strings"
+import (
+	"strings"
+)
 
 type CommandType string
 
@@ -19,7 +21,6 @@ type Command struct {
 
 type CommandParser interface {
 	Parse(command string) *Command
-	ParseHeloArgs(command *Command) string
 }
 
 type GeneralCommandParser struct{}
@@ -37,8 +38,8 @@ func (p *GeneralCommandParser) Parse(command string) *Command {
 
 	switch parts[0] {
 	case "MAIL", "RCPT":
-		if len(parts) > 1 && (parts[1] == "FROM:" || parts[1] == "TO:") {
-			cmdString := strings.Trim(parts[0]+" "+parts[1], ":")
+		if len(parts) > 1 && (parts[1] == "FROM" || parts[1] == "TO") {
+			cmdString := parts[0] + " " + parts[1]
 			cmdType = CommandType(strings.ToUpper(cmdString))
 			payload = strings.Join(parts[2:], " ")
 		}
@@ -51,8 +52,4 @@ func (p *GeneralCommandParser) Parse(command string) *Command {
 		Type:    cmdType,
 		Payload: payload,
 	}
-}
-
-func (p *GeneralCommandParser) ParseHeloArgs(command *Command) string {
-	return strings.Fields(command.Payload)[0]
 }
