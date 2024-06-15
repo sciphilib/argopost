@@ -19,6 +19,7 @@ type Command struct {
 
 type CommandParser interface {
 	Parse(command string) *Command
+	ParseHeloArgs(command *Command) string
 }
 
 type GeneralCommandParser struct{}
@@ -34,13 +35,24 @@ func (p *GeneralCommandParser) Parse(command string) *Command {
 		return nil
 	}
 
-	if len(parts) > 2 {
-		cmdType = CommandType(strings.ToUpper(parts[0]) + " " + strings.Trim(strings.ToUpper(parts[1]), ":"))
-		payload = strings.Join(parts[2:], " ")
-	} else {
+	switch parts[0] {
+	case "MAIL", "RCPT":
+		if len(parts) > 1 && (parts[1] == "FROM:" || parts[1] == "TO:") {
+			cmdString := strings.Trim(parts[0]+" "+parts[1], ":")
+			cmdType = CommandType(strings.ToUpper(cmdString))
+			payload = strings.Join(parts[2:], " ")
+		}
+	default:
 		cmdType = CommandType(strings.ToUpper(parts[0]))
 		payload = strings.Join(parts[1:], " ")
 	}
 
-	return &Command{Type: cmdType, Payload: payload}
+	return &Command{
+		Type:    cmdType,
+		Payload: payload,
+	}
+}
+
+func (p *GeneralCommandParser) ParseHeloArgs(command *Command) string {
+	return strings.Fields(command.Payload)[0]
 }

@@ -17,6 +17,7 @@ type (
 		conn   net.Conn
 		state  SessionState
 		reader *bufio.Reader
+		user   string
 	}
 
 	SessionState int
@@ -25,11 +26,6 @@ type (
 		sessions  map[uint64]*Session
 		cmdParser internal.CommandParser
 	}
-)
-
-const (
-	WaitingForCmd SessionState = iota
-	ReadingData
 )
 
 var seed maphash.Seed = maphash.MakeSeed()
@@ -51,11 +47,10 @@ func (m *SessionManager) HandleSession(s *Session) error {
 
 	switch command.Type {
 	case internal.HeloCommand:
-		// todo handle
-		s.Write("250", "OK")
+		args := m.ParseHeloArgs(command)
+		s.handleHelo(args)
 	default:
-		// todo handle
-		s.Write("550", "Error occured")
+		s.invalidCommand(command)
 	}
 
 	return nil
@@ -65,7 +60,6 @@ func (m *SessionManager) CreateSession(conn net.Conn) *Session {
 	s := &Session{
 		hash:   maphash.String(seed, conn.LocalAddr().String()),
 		conn:   conn,
-		state:  WaitingForCmd,
 		reader: bufio.NewReader(conn),
 	}
 	m.sessions[s.hash] = s
@@ -75,6 +69,10 @@ func (m *SessionManager) CreateSession(conn net.Conn) *Session {
 func (m *SessionManager) CloseSession(s *Session) {
 	delete(m.sessions, s.hash)
 	s.conn.Close()
+}
+
+func (m *SessionManager) ParseHeloArgs(c *internal.Command) string {
+	return m.cmdParser.ParseHeloArgs(c)
 }
 
 func (s *Session) Write(code string, text ...string) error {
@@ -101,6 +99,22 @@ func (s *Session) Write(code string, text ...string) error {
 }
 
 func (s *Session) nextDeadline() time.Time {
+	// todo: remove hardcode and start using config
 	seconds := 10
 	return time.Now().Add(time.Duration(seconds) * time.Second)
+}
+
+func (s *Session) handleHelo(args string) {
+	var builder strings.Builder
+	if len(args) == 0 {
+		s.Write("501", "Domain/address argument is required for HELO")
+	}
+	s.user = args
+
+	builder.WriteString(fmt.Sprintf("Hello %s", s.user))
+	s.Write("250", builder.String())
+}
+
+func (s *Session) invalidCommand(c *internal.Command) {
+	s.Write("503", fmt.Sprintf("Command %s is invalid or out of sequence", c.Type))
 }

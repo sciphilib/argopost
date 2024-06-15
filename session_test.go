@@ -13,7 +13,7 @@ func TestSession_HandleHelo(t *testing.T) {
 	conn := mockNetConn{}
 	session := &Session{
 		conn:   &conn,
-		reader: bufio.NewReader(strings.NewReader("HELO test\n")),
+		reader: bufio.NewReader(strings.NewReader("HELO email@mail.com some text\n")),
 	}
 
 	manager := NewManager()
@@ -22,7 +22,7 @@ func TestSession_HandleHelo(t *testing.T) {
 		t.Errorf("HandleSession returned an error: %v", err)
 	}
 
-	expectedResponse := "250 OK\r\n"
+	expectedResponse := "250 Hello email@mail.com\r\n"
 	if conn.data.String() != expectedResponse {
 		t.Errorf("Expected response %q, got %q", expectedResponse, conn.data.String())
 	}
