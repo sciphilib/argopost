@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"hash/maphash"
+	"io"
 	"net"
 	"net/mail"
 	"strings"
@@ -39,30 +40,49 @@ func NewManager() *SessionManager {
 	}
 }
 
-func (m *SessionManager) HandleSession(s *Session) error {
-	message, err := s.reader.ReadString('\n')
-	if err != nil {
-		return err
+func (m *SessionManager) PrintMap() {
+	for key, session := range m.sessions {
+		fmt.Printf("Key: %d, Session: %+v\n", key, session)
 	}
+}
 
-	command := m.cmdParser.Parse(message)
-	fmt.Println(command)
+func (m *SessionManager) HandleSession(s *Session) error {
+	for {
+		message, err := s.reader.ReadString('\n')
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 
-	switch command.Type {
-	case internal.HeloCommand:
-		s.handleHelo(command.Payload)
-	case internal.MailFromCommand:
-		s.handleMailFrom(command.Payload)
-	default:
-		s.invalidCommand(message)
+		command := m.cmdParser.Parse(message)
+
+		switch command.Type {
+		case internal.HeloCommand:
+			s.handleHelo(command.Payload)
+		case internal.MailFromCommand:
+			s.handleMailFrom(command.Payload)
+		case internal.QuitCommand:
+			s.Write("221", "Goodnight and good luck")
+			return nil
+		default:
+			s.invalidCommand(message)
+		}
 	}
 
 	return nil
 }
 
 func (m *SessionManager) CreateSession(conn net.Conn) *Session {
+	var h maphash.Hash
+	h.SetSeed(seed)
+	h.WriteString(conn.LocalAddr().String())
+	h.WriteString(conn.RemoteAddr().String())
+	hash := h.Sum64()
+
 	s := &Session{
-		hash:   maphash.String(seed, conn.LocalAddr().String()),
+		hash:   hash,
 		conn:   conn,
 		reader: bufio.NewReader(conn),
 	}
@@ -100,7 +120,7 @@ func (s *Session) Write(code string, text ...string) error {
 
 func (s *Session) nextDeadline() time.Time {
 	// todo: remove hardcode and start using config
-	seconds := 10
+	seconds := 100
 	return time.Now().Add(time.Duration(seconds) * time.Second)
 }
 

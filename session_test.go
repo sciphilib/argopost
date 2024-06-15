@@ -41,7 +41,7 @@ func TestSession_HandleErrorHelo(t *testing.T) {
 		t.Errorf("HandleSession returned an error: %v", err)
 	}
 
-	expectedResponse := "503 Command HELLO is invalid\r\n"
+	expectedResponse := "503 Command HELLO test is invalid\r\n"
 	if conn.data.String() != expectedResponse {
 		t.Errorf("Expected response %q, got %q", expectedResponse, conn.data.String())
 	}

@@ -36,15 +36,18 @@ func (p *GeneralCommandParser) Parse(command string) *Command {
 		return nil
 	}
 
-	switch parts[0] {
+	cmdBegin := strings.ToUpper(parts[0])
+
+	switch cmdBegin {
 	case "MAIL", "RCPT":
-		if len(parts) > 1 && (parts[1] == "FROM" || parts[1] == "TO") {
-			cmdString := parts[0] + " " + parts[1]
-			cmdType = CommandType(strings.ToUpper(cmdString))
+		cmdEnd := strings.ToUpper(parts[1])
+		if len(parts) > 1 && (cmdEnd == "FROM" || cmdEnd == "TO") {
+			cmdString := cmdBegin + " " + cmdEnd
+			cmdType = CommandType(cmdString)
 			payload = strings.Join(parts[2:], " ")
 		}
 	default:
-		cmdType = CommandType(strings.ToUpper(parts[0]))
+		cmdType = CommandType(cmdBegin)
 		payload = strings.Join(parts[1:], " ")
 	}
 
