@@ -21,6 +21,7 @@ type (
 		reader *bufio.Reader
 		user   string
 		from   string
+		to     string
 	}
 
 	SessionState int
@@ -57,12 +58,17 @@ func (m *SessionManager) HandleSession(s *Session) error {
 		}
 
 		command := m.cmdParser.Parse(message)
+		if command == nil {
+			continue
+		}
 
 		switch command.Type {
 		case internal.HeloCommand:
 			s.handleHelo(command.Payload)
 		case internal.MailFromCommand:
 			s.handleMailFrom(command.Payload)
+		case internal.RcptToCommand:
+			s.handleRcptTo(command.Payload)
 		case internal.QuitCommand:
 			s.Write("221", "Goodnight and good luck")
 			return nil
@@ -124,17 +130,16 @@ func (s *Session) nextDeadline() time.Time {
 	return time.Now().Add(time.Duration(seconds) * time.Second)
 }
 
-func (s *Session) handleHelo(args string) {
+func (s *Session) handleHelo(args string) error {
 	if len(args) == 0 {
-		s.Write("501", "Domain/address argument is required for HELO")
-		return
+		return s.Write("501", "Domain/address argument is required for HELO")
 	}
 	parts := strings.Trim(strings.Fields(args)[0], "<>\":")
 	var builder strings.Builder
 	s.user = parts
 
 	builder.WriteString(fmt.Sprintf("Hello %s", s.user))
-	s.Write("250", builder.String())
+	return s.Write("250", builder.String())
 }
 
 func (s *Session) handleMailFrom(args string) error {
@@ -156,6 +161,26 @@ func (s *Session) handleMailFrom(args string) error {
 	s.from = email.Address
 
 	return s.Write("250", fmt.Sprintf("Accepting mail from %s", s.from))
+}
+
+func (s *Session) handleRcptTo(args string) error {
+	parts := strings.Fields(args)
+	if len(args) == 0 {
+		return s.Write("501", "Email argument is required for RCPT TO")
+	}
+
+	if len(s.from) == 0 {
+		return s.Write("502", "Missign MAIL FROM command")
+	}
+
+	email, err := mail.ParseAddress(strings.Trim(parts[0], "<>\":"))
+	if err != nil {
+		return s.Write("501", "Invalid email address")
+	}
+
+	s.to = email.Address
+
+	return s.Write("250", fmt.Sprintf("Will deliever mail to %s", s.to))
 }
 
 func (s *Session) invalidCommand(m string) {
