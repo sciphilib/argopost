@@ -28,6 +28,25 @@ func TestSession_HandleHelo(t *testing.T) {
 	}
 }
 
+func TestSession_HandleEmptyHelo(t *testing.T) {
+	conn := mockNetConn{}
+	session := &Session{
+		conn:   &conn,
+		reader: bufio.NewReader(strings.NewReader("HELO\n")),
+	}
+
+	manager := NewManager()
+	err := manager.HandleSession(session)
+	if err != nil {
+		t.Errorf("HandleSession returned an error: %v", err)
+	}
+
+	expectedResponse := "501 Domain/address argument is required for HELO\r\n"
+	if conn.data.String() != expectedResponse {
+		t.Errorf("Expected response %q, got %q", expectedResponse, conn.data.String())
+	}
+}
+
 func TestSession_HandleErrorHelo(t *testing.T) {
 	conn := mockNetConn{}
 	session := &Session{

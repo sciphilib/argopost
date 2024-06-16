@@ -125,11 +125,12 @@ func (s *Session) nextDeadline() time.Time {
 }
 
 func (s *Session) handleHelo(args string) {
-	parts := strings.Fields(args)[0]
-	var builder strings.Builder
-	if len(parts) == 0 {
+	if len(args) == 0 {
 		s.Write("501", "Domain/address argument is required for HELO")
+		return
 	}
+	parts := strings.Trim(strings.Fields(args)[0], "<>\":")
+	var builder strings.Builder
 	s.user = parts
 
 	builder.WriteString(fmt.Sprintf("Hello %s", s.user))
@@ -147,7 +148,7 @@ func (s *Session) handleMailFrom(args string) error {
 		return s.Write("501", "Email argument is required for MAIL FROM")
 	}
 
-	email, err := mail.ParseAddress(parts[0])
+	email, err := mail.ParseAddress(strings.Trim(parts[0], "<>\":"))
 	if err != nil {
 		return s.Write("501", "Invalid email address")
 	}
