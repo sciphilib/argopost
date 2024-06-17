@@ -22,6 +22,7 @@ type (
 		user   string
 		from   string
 		to     string
+		data   string
 	}
 
 	SessionState int
@@ -69,6 +70,8 @@ func (m *SessionManager) HandleSession(s *Session) error {
 			s.handleMailFrom(command.Payload)
 		case internal.RcptToCommand:
 			s.handleRcptTo(command.Payload)
+		case internal.DataCommand:
+			s.handleData(command.Payload)
 		case internal.QuitCommand:
 			s.Write("221", "Goodnight and good luck")
 			return nil
@@ -181,6 +184,59 @@ func (s *Session) handleRcptTo(args string) error {
 	s.to = email.Address
 
 	return s.Write("250", fmt.Sprintf("Will deliever mail to %s", s.to))
+}
+
+func (s *Session) handleData(args string) error {
+	if len(args) != 0 {
+		return s.Write("501", "There are should be no arguments for DATA command")
+	}
+
+	if len(s.to) == 0 || len(s.from) == 0 {
+		return s.Write("502", "Missing RCPT TO command")
+	}
+
+	s.Write("354", "Enter data with a terminating .")
+
+	s.processData()
+
+	return nil
+}
+
+func (s *Session) processData() error {
+	var (
+		builder strings.Builder
+		message string
+		err     error
+	)
+
+	for {
+		message, err = s.reader.ReadString('\n')
+		if strings.HasSuffix(message, ".\n") {
+			builder.WriteString(strings.TrimSuffix(message, "."))
+			break
+		}
+		builder.WriteString(message)
+	}
+
+	s.data = builder.String()
+
+	// todo: realize backend to send mail with data to another server
+	if err == nil {
+		s.Write("250", "Ok: queued")
+	} else {
+		s.Write("554", "Error: transaction failed")
+	}
+
+	s.reset()
+
+	return err
+}
+
+func (s *Session) reset() {
+	s.user = ""
+	s.from = ""
+	s.to = ""
+	s.data = ""
 }
 
 func (s *Session) invalidCommand(m string) {
